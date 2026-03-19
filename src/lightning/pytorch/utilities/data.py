@@ -102,22 +102,22 @@ def has_len_all_ranks(
         return False
 
     total_length = strategy.reduce(torch.tensor(local_length, device=strategy.root_device), reduce_op="sum")
-    if total_length == 0:
-        rank_zero_warn(
-            f"Total length of `{type(dataloader).__name__}` across ranks is zero."
-            " Please make sure this was your intention."
-        )
-    if total_length > 0 and local_length == 0:
-        dataloader_cls_name = type(dataloader).__name__
-        if not allow_zero_length_dataloader_with_multiple_devices:
-            raise RuntimeError(
-                f"`{dataloader_cls_name}` within local rank has zero length."
-                " Please make sure that it returns at least 1 batch."
-            )
-        rank_zero_warn(
-            f"Total length of `{dataloader_cls_name}` across ranks is zero, but local rank has zero"
-            " length. Please be cautious of uneven batch length."
-        )
+    # if total_length == 0:
+    #     rank_zero_warn(
+    #         f"Total length of `{type(dataloader).__name__}` across ranks is zero."
+    #         " Please make sure this was your intention."
+    #     )
+    # if total_length > 0 and local_length == 0:
+    #     dataloader_cls_name = type(dataloader).__name__
+    #     if not allow_zero_length_dataloader_with_multiple_devices:
+    #         raise RuntimeError(
+    #             f"`{dataloader_cls_name}` within local rank has zero length."
+    #             " Please make sure that it returns at least 1 batch."
+    #         )
+    #     rank_zero_warn(
+    #         f"Total length of `{dataloader_cls_name}` across ranks is zero, but local rank has zero"
+    #         " length. Please be cautious of uneven batch length."
+    #     )
 
     if has_iterable_dataset(dataloader):
         rank_zero_warn(

@@ -87,12 +87,12 @@ class _LoggerConnector:
         else:
             self.trainer.loggers = [logger]
 
-        if not any(isinstance(logger, LitLogger) for logger in self.trainer.loggers):
-            rank_zero_info(
-                "💡 Tip: For seamless cloud logging and experiment tracking,"
-                " try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger,"
-                " which logs metrics and artifacts automatically to the Lightning Experiments platform."
-            )
+        # if not any(isinstance(logger, LitLogger) for logger in self.trainer.loggers):
+        #     rank_zero_info(
+        #         "💡 Tip: For seamless cloud logging and experiment tracking,"
+        #         " try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger,"
+        #         " which logs metrics and artifacts automatically to the Lightning Experiments platform."
+        #     )
 
     def log_metrics(self, metrics: _OUT_DICT, step: Optional[int] = None) -> None:
         """Logs the metric dict passed in. If `step` parameter is None and `step` key is presented is metrics, uses

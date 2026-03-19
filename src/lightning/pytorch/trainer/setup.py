@@ -161,10 +161,10 @@ def _log_device_info(trainer: "pl.Trainer") -> None:
         gpu_type = ""
 
     gpu_used = isinstance(trainer.accelerator, (CUDAAccelerator, MPSAccelerator))
-    rank_zero_info(f"GPU available: {gpu_available}{gpu_type}, used: {gpu_used}")
+    # rank_zero_info(f"GPU available: {gpu_available}{gpu_type}, used: {gpu_used}")
 
     num_tpu_cores = trainer.num_devices if isinstance(trainer.accelerator, XLAAccelerator) else 0
-    rank_zero_info(f"TPU available: {XLAAccelerator.is_available()}, using: {num_tpu_cores} TPU cores")
+    # rank_zero_info(f"TPU available: {XLAAccelerator.is_available()}, using: {num_tpu_cores} TPU cores")
 
     if (
         CUDAAccelerator.is_available()

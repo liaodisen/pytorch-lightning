@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Optional, Union
@@ -20,6 +21,7 @@ from typing_extensions import override
 
 import lightning.pytorch as pl
 from lightning.fabric.utilities.data import _set_sampler_epoch, sized_len
+from lightning.fabric.utilities.warnings import PossibleUserWarning
 from lightning.pytorch.loops import _Loop
 from lightning.pytorch.loops.fetchers import _DataFetcher
 from lightning.pytorch.loops.progress import _Progress
@@ -40,6 +42,9 @@ from lightning.pytorch.utilities.combined_loader import _SUPPORTED_MODES, Combin
 from lightning.pytorch.utilities.data import has_len_all_ranks
 from lightning.pytorch.utilities.exceptions import MisconfigurationException, SIGTERMException
 from lightning.pytorch.utilities.model_helpers import is_overridden
+from lightning.pytorch.utilities.rank_zero import rank_zero_debug, rank_zero_info, rank_zero_warn
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -168,11 +173,13 @@ class _FitLoop(_Loop):
     def done(self) -> bool:
         """Evaluates when to leave the loop."""
         if self.max_batches == 0:
+            rank_zero_info("`Trainer.fit` stopped: No training batches.")
             return True
 
         # TODO: Move track steps inside training loop and move part of these condition inside training loop
         stop_steps = _is_max_limit_reached(self.epoch_loop.global_step, self.max_steps)
         if stop_steps:
+            rank_zero_info(f"`Trainer.fit` stopped: `max_steps={self.max_steps!r}` reached.")
             return True
 
         # `processed` is increased before `on_train_epoch_end`, the hook where checkpoints are typically saved.
@@ -182,9 +189,11 @@ class _FitLoop(_Loop):
         if stop_epochs:
             # in case they are not equal, override so `trainer.current_epoch` has the expected value
             self.epoch_progress.current.completed = self.epoch_progress.current.processed
+            rank_zero_info(f"`Trainer.fit` stopped: `max_epochs={self.max_epochs!r}` reached.")
             return True
 
         if self.trainer.should_stop and self._can_stop_early:
+            rank_zero_debug("`Trainer.fit` stopped: `trainer.should_stop` was set.")
             return True
 
         return False
@@ -222,6 +231,8 @@ class _FitLoop(_Loop):
         pl_module = trainer.lightning_module
         if trainer.limit_train_batches == 0 or not is_overridden("training_step", pl_module):
             return
+
+        log.debug(f"{self.__class__.__name__}: resetting train dataloader")
 
         source = self._data_source
         train_dataloader = _request_dataloader(source)
@@ -305,6 +316,14 @@ class _FitLoop(_Loop):
             else:
                 trainer.val_check_batch = int(self.max_batches * trainer.val_check_interval)
                 trainer.val_check_batch = max(1, trainer.val_check_batch)
+
+        if trainer.loggers and self.max_batches < trainer.log_every_n_steps and not trainer.fast_dev_run:
+            rank_zero_warn(
+                f"The number of training batches ({self.max_batches}) is smaller than the logging interval"
+                f" Trainer(log_every_n_steps={trainer.log_every_n_steps}). Set a lower value for log_every_n_steps if"
+                " you want to see logs for the training epoch.",
+                category=PossibleUserWarning,
+            )
 
     @property
     def restarted_on_epoch_start(self) -> bool:
@@ -436,6 +455,8 @@ class _FitLoop(_Loop):
 
     def advance(self) -> None:
         """Runs one whole epoch."""
+        log.debug(f"{type(self).__name__}: advancing loop")
+
         combined_loader = self._combined_loader
         assert combined_loader is not None
         if combined_loader._mode == "sequential":
@@ -483,6 +504,8 @@ class _FitLoop(_Loop):
 
     def on_run_end(self) -> None:
         """Calls the ``on_train_end`` hook."""
+        log.debug(f"{self.__class__.__name__}: train run ended")
+
         trainer = self.trainer
         call._call_callback_hooks(trainer, "on_train_end")
         call._call_lightning_module_hook(trainer, "on_train_end")
@@ -510,6 +533,14 @@ class _FitLoop(_Loop):
         """Warn if any modules are in eval mode at the start of training."""
         model = self.trainer.lightning_module
         eval_modules = [name for name, module in model.named_modules() if not module.training]
+
+        if eval_modules:
+            rank_zero_warn(
+                f"Found {len(eval_modules)} module(s) in eval mode at the start of training."
+                " This may lead to unexpected behavior during training. If this is intentional,"
+                " you can ignore this warning.",
+                category=PossibleUserWarning,
+            )
 
     def _should_accumulate(self) -> bool:
         """Whether the gradients should be accumulated."""

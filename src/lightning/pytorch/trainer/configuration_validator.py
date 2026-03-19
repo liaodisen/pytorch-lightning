@@ -66,12 +66,7 @@ def __verify_train_val_loop_configuration(trainer: "pl.Trainer", model: "pl.Ligh
     has_val_step = is_overridden("validation_step", model)
     if has_val_loader and not has_val_step:
         rank_zero_warn("You passed in a `val_dataloader` but have no `validation_step`. Skipping val loop.")
-    if has_val_step and not has_val_loader:
-        rank_zero_warn(
-            "You defined a `validation_step` but have no `val_dataloader`. Skipping val loop.",
-            category=PossibleUserWarning,
-        )
-
+        
     # check legacy hooks are not present
     if callable(getattr(model, "training_epoch_end", None)):
         raise NotImplementedError(
